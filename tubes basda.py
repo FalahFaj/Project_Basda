@@ -4,6 +4,7 @@ from tabulate import tabulate
 import os
 import pyfiglet
 import datetime as dt
+import re
 
 def clear_terminal():
     if os.name == 'nt':
@@ -33,11 +34,65 @@ def hiasan(apa):
 def register():
     koneksi = connect()
     syntax = koneksi.cursor()
-    nama = input("Masukkan nama : ")
-    no_hp = input("Masukkan nomor hp : ")
-    username = input("Masukkan username : ")
-    password = input("Masukkan password : ")
-    email = input("Masukkan alamat email : ")
+    while True:
+        nama = input("Masukkan nama : ")
+        if nama == "":
+            print("Nama tidak boleh kosong")
+        else:
+            break
+    while True:
+        no_hp = input("Masukkan nomor hp : ")
+        if no_hp == "":
+            print("Nomor hp tidak boleh kosong")
+        elif not no_hp.isdigit():
+            print("Nomor hp hanya boleh berisi angka")
+        elif not no_hp.startswith("62"):
+            print("Nomor hp harus dimulai dengan '62'")
+        elif not (10 <= len(no_hp) <= 13):  
+            print("Nomor hp harus terdiri dari 10 hingga 13 digit")
+        else:
+            break
+    query = "SELECT * FROM customer"
+    syntax.execute(query)
+    data_customer = syntax.fetchall()
+    username_sudah_ada = [user['username'] for user in data_customer]
+
+    while True:
+        username = input("Masukkan username : ").strip()
+
+        if not username:
+            print("Username tidak boleh kosong.")
+        elif ' ' in username:
+            print("Username tidak boleh mengandung spasi.")
+        elif not username.isalnum():
+            print("Username hanya boleh berisi huruf dan angka.")
+        elif username in username_sudah_ada:
+            print("Username sudah terdaftar. Silakan pilih username lain.")
+        else:
+            break
+    while True:
+        password = input("Masukkan password : ")
+        if password == "":
+            print("Password tidak boleh kosong")
+        elif len(password) < 6:
+            print("Password harus memiliki panjang minimal 6 karakter")
+        elif not re.search(r'(?=.*[A-Za-z])(?=.*\d)', password):
+            print("Password harus mengandung kombinasi huruf dan angka")
+        else:
+            break
+    while True:
+        domain_diizinkan = ["gmail.com","mail.unej.ac.id"]
+        email = input("Masukkan alamat email : ")
+        if email == "":
+            print("Alamat email tidak boleh kosong")
+        elif "@" not in email:
+            print("Alamat email harus mengandung '@'.")
+        else:
+            domain = email.split('@')[1]
+            if domain not in domain_diizinkan:
+                print(f"Alamat email hanya boleh menggunakan domain : {', '.join(domain_diizinkan)}")
+            else:
+                break
     while True:
         try:
             query = f"INSERT INTO customer (nama, no_hp, username, password, email_address) VALUES ({nama},{no_hp},{username},{password},{email})"
