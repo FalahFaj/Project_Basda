@@ -29,11 +29,11 @@ def banner():
 
 
 def hiasan(apa):
-    print(f"\033[96m",pyfiglet.figlet_format(apa, font='small'),f"\033[0m")
+    print("\033[96m",pyfiglet.figlet_format(apa, font='small'),"\033[0m")
 
 def register():
     koneksi = connect()
-    syntax = koneksi.cursor()
+    syntax = koneksi.cursor(cursor_factory=RealDictCursor)
     while True:
         nama = input("Masukkan nama : ")
         if nama == "":
@@ -95,8 +95,8 @@ def register():
                 break
     while True:
         try:
-            query = f"INSERT INTO customer (nama, no_hp, username, password, email_address) VALUES ({nama},{no_hp},{username},{password},{email})"
-            syntax.execute(query)
+            query = "INSERT INTO customer (nama, no_hp, username, password, email_address) VALUES (%s,%s,%s,%s,%s)"
+            syntax.execute(query, (nama,no_hp,username,password,email))
             koneksi.commit()
             print("Data berhasil disimpan")
             input("Tekan enter untuk melanjutkan")
@@ -106,8 +106,7 @@ def register():
             print("Data gagal disimpan")
             print(e)
             print("Silahkan coba lagi")
-            print("Apakah anda ingin mendaftar lagi? (y/n)")
-            pilihan = input("Pilih program : ")
+            pilihan = input("Apakah anda ingin mendaftar lagi? (y/n) : ")
             if pilihan.lower() == 'y':
                 continue
             else:
@@ -516,7 +515,7 @@ def Beli(data_produk,data_akun,jumlah):
                 case _:
                     print("Metode pembayaran tidak valid, silahkan coba lagi")
         for item in daftar_pembelian:
-            query = f"INSERT INTO transaksi (tanggal, nominal, id_produk, id_customer, id_metode_pembayaran, id_penyewaan) VALUES (%s, %s, %s, %s, %s))"
+            query = "INSERT INTO transaksi (tanggal, nominal, id_produk, id_customer, id_metode_pembayaran, id_penyewaan) VALUES (%s, %s, %s, %s, %s))"
             kursor.execute(query,(
                 tanggal,
                 item['harga'] * int(item['jumlah']),
@@ -683,57 +682,56 @@ def InformasiAkun(role,data_akun):
     elif role == 'customer':
         query = "SELECT * FROM customer WHERE id_customer = %s"
         kursor.execute(query, (data_akun['id_customer'],))
-        kursor.execute(query)
         data = kursor.fetchall()
         if data:
             print("Berikut adalah informasi akun customer:")
-            print(f"Nama Customer \t: {data[0]['nama']}")
-            print(f"No HP Customer \t: {data[0]['no_hp']}")
+            print(f"Nama Customer \t\t: {data[0]['nama']}")
+            print(f"No HP Customer \t\t: {data[0]['no_hp']}")
             print(f"Username Customer \t: {data[0]['username']}")
             print(f"Password Customer \t: {data[0]['password']}")
-            print(f"Email Customer \t: {data[0]['email_address']}")
+            print(f"Email Customer \t\t: {data[0]['email_address']}")
             if data[0]['id_alamat'] != None:
                 query = "SELECT * FROM alamat WHERE id_alamat = %s"
                 kursor.execute(query, (data[0]['id_alamat'],))
                 data_alamat = kursor.fetchall()
                 if data_alamat:
-                    print(f"""Alamat : {data_alamat['provinsi']},{data_alamat['kecamatan']},
-                          {data_alamat['desa']},{data_alamat['dusun']},{data_alamat['rw']}/{data_alamat[rt]}""")
+                    print(f"""Alamat : {data_alamat[0]['provinsi']},{data_alamat[0]['kecamatan']},
+                          {data_alamat[0]['desa']},{data_alamat[0]['dusun']},{data_alamat[0]['rw']}/{data_alamat[0]['rt']}""")
                     input("Tekan enter untuk melanjutkan")
+            else:
+                print("Nampaknya anda belum memiliki alamat yang terdaftar")
+                tanya = input("Apakah anda ingin menambahkan alamat? (y/n) : ")
+                if tanya.lower() == 'y':
+                    provinsi = input("Masukkan provinsi : ")
+                    kabupatenkota = input("Masukkan kabupaten/kota : ")
+                    kecamatan = input("Masukkan kecamatan : ")
+                    desa = input("Masukkan desa : ")
+                    dusun = input("Masukkan dusun : ")
+                    rt = input("Masukkan rt : ")
+                    rw = input("Masukkan rw : ")
+                    query = f"INSERT INTO alamat (provinsi, kabupatenkota, kecamatan, desa, dusun, rt, rw) VALUES ('{provinsi}', '{kabupatenkota}', '{kecamatan}', '{desa}', '{dusun}', '{rt}', '{rw}')"
+                    kursor.execute(query)
+                    koneksi.commit()
+                    print("Data alamat berhasil disimpan")
+                    query = f"UPDATE customer SET id_alamat=(SELECT id_alamat FROM alamat WHERE provinsi='{provinsi}' AND kabupatenkota='{kabupatenkota}' AND kecamatan='{kecamatan}' AND desa='{desa}' AND dusun='{dusun}' AND rt='{rt}' AND rw='{rw}') WHERE id_customer={data[0]['id_customer']}"
+                    kursor.execute(query)
+                    koneksi.commit()
+                    hiasan("Terimakasih telah menambahkan Alamat")
+                    input("Tekan enter untuk melanjutkan")
+                    clear_terminal()
                 else:
-                    print("Nampaknya anda belum memiliki alamat yang terdaftar")
-                    tanya = input("Apakah anda ingin menambahkan alamat? (y/n) : ")
-                    if tanya.lower() == 'y':
-                        provinsi = input("Masukkan provinsi : ")
-                        kabupatenkota = input("Masukkan kabupaten/kota : ")
-                        kecamatan = input("Masukkan kecamatan : ")
-                        desa = input("Masukkan desa : ")
-                        dusun = input("Masukkan dusun : ")
-                        rt = input("Masukkan rt : ")
-                        rw = input("Masukkan rw : ")
-                        query = f"INSERT INTO alamat (provinsi, kabupatenkota, kecamatan, desa, dusun, rt, rw) VALUES ('{provinsi}', '{kabupatenkota}', '{kecamatan}', '{desa}', '{dusun}', '{rt}', '{rw}')"
-                        kursor.execute(query)
-                        koneksi.commit()
-                        print("Data alamat berhasil disimpan")
-                        query = f"UPDATE customer SET id_alamat=(SELECT id_alamat FROM alamat WHERE provinsi='{provinsi}' AND kabupatenkota='{kabupatenkota}' AND kecamatan='{kecamatan}' AND desa='{desa}' AND dusun='{dusun}' AND rt='{rt}' AND rw='{rw}') WHERE id_customer={data[0]['id_customer']}"
-                        kursor.execute(query)
-                        koneksi.commit()
-                        hiasan("Terimakasih telah menambahkan Alamat")
-                        input("Tekan enter untuk melanjutkan")
-                        clear_terminal()
-                    else:
-                        print("Jika anda tidak mengisi alamat maka anda tidak bisa melakukan penyewaan")
-                        input("Tekan enter untuk melanjutkan")
-                        clear_terminal()
+                    print("Jika anda tidak mengisi alamat maka anda tidak bisa melakukan penyewaan")
+                    input("Tekan enter untuk melanjutkan")
+                    clear_terminal()
         else:
             print("Tidak ada informasi akun customer yang tersedia")
             input("Tekan enter untuk melanjutkan")
             clear_terminal()
 
-def Keranjang(data):
+def Keranjang(data_akun):
     koneksi = connect()
     kursor = koneksi.cursor(cursor_factory=RealDictCursor)
-    query = f"SELECT * FROM keranjang WHERE id_customer={data['id_customer']}"
+    query = f"SELECT * FROM keranjang WHERE id_customer={data_akun['id_customer']}"
     kursor.execute(query)
     data_keranjang = kursor.fetchall()
     if data_keranjang:
@@ -746,10 +744,10 @@ def Keranjang(data):
                 produk = input("Masukkan id/nama produk yang ingin dibeli : ")
                 try:
                     id_produk = int(produk) 
-                    query = "SELECT * FROM produk WHERE id_produk = %s"
+                    query = "SELECT p.nama,p.harga,k.jumlah FROM produk p JOIN keranjang k WHERE id_produk = %s"
                     kursor.execute(query, (id_produk,))
                 except ValueError:
-                    query = "SELECT * FROM produk WHERE nama ILIKE %s"
+                    query = "SELECT p.nama,p.harga,k.jumlah FROM produk p JOIN keranjang k WHERE nama ILIKE %s"
                     kursor.execute(query, (f"%{produk}%",))
                 while True:
                     try:
@@ -757,7 +755,18 @@ def Keranjang(data):
                         if data_produk:
                             print("Berikut adalah data produk yang ingin dibeli:")
                             print(tabulate(data_produk, headers="keys", tablefmt="fancy_grid"))
-                            Beli(data_produk)
+                            tanya = input("Beli semuanya atau beberapa (s/b) : ").lower()
+                            if tanya == 's':
+                                jumlah = data_keranjang['jumlah']
+                                Beli(data_produk,data_akun,jumlah)
+                            else:
+                                while True:
+                                    jumlah = int(input("Masukkan jumlah barang yang ingin anda beli : "))
+                                    if jumlah >= data_keranjang["jumlah"]:
+                                        print("Jumlahnya tidak sesui yang ada di keranjang anda")
+                                        print("Silahkan masukkan ulang")
+                                    else:
+                                        Beli(data_produk,data_akun,jumlah)
                             clear_terminal()
                             break
                         else:
@@ -767,7 +776,7 @@ def Keranjang(data):
                         print("Gagal menampilkan data produk")
                         print(e)
             elif tanya.lower() == 'a':
-                query = f"SELECT * FROM produk WHERE id IN (SELECT id_produk FROM keranjang WHERE id_customer={data['id_customer']})"
+                query = f"SELECT * FROM produk WHERE id IN (SELECT id_produk FROM keranjang WHERE id_customer={data_akun['id_customer']})"
                 kursor.execute(query)
                 data_produk = kursor.fetchall()
                 if data_produk:
@@ -776,6 +785,10 @@ def Keranjang(data):
                 else:
                     print("Tidak ada produk yang tersedia")
         print("Silahkan pilih produk yang ingin dibeli")
+    else:
+        print("Anda tidak memiliki barang dikeranjang")
+        input("Tekan enter untuk kembali")
+        clear_terminal()
 
 
 def JualSewa(data_akun):
@@ -1169,7 +1182,7 @@ def LaporanTransaksi():
             print("\nTransaksi Pembelian:")
             print(tabulate(hasil, headers="keys", tablefmt="fancy_grid") if hasil else "Tidak ada data.")
         elif pilihan == "2":
-            query = f"SELECT * FROM transaksi WHERE id_penyewaan IS NOT NULL"
+            query = "SELECT * FROM transaksi WHERE id_penyewaan IS NOT NULL"
             kursor.execute(query)
             data_transaksi = kursor.fetchall()
             if data_transaksi:
@@ -1256,7 +1269,7 @@ def TampilkanKatalog(role):
     koneksi = connect()
     syntax = koneksi.cursor(cursor_factory=RealDictCursor)
     try:
-        query = "SELECT nama as 'Nama', harga as 'Harga', stok as 'Stok', disewakan FROM produk"
+        query = """SELECT nama as "Nama", harga as "Harga", stok as "Stok", disewakan FROM produk"""
         syntax.execute(query)
         data = syntax.fetchall()
         if data:
@@ -1317,10 +1330,11 @@ def Menu(role,data_akun):
                 print(f"{w}║│{e}  1. Tampilkan Katalog          {w}│║{e}".center(b+8)) 
                 print(f"{w}║│{e}  2. Pembelian & Penyewaan      {w}│║{e}".center(b+8))
                 print(f"{w}║│{e}  3. Pengembalian               {w}│║{e}".center(b+8))
-                print(f"{w}║│{e}  4. Riwayat Transaksi          {w}│║{e}".center(b+8))
-                print(f"{w}║│{e}  5. Informasi Akun             {w}│║{e}".center(b+8))
-                print(f"{w}║│{e}  6. Help                       {w}│║{e}".center(b+8))
-                print(f"{w}║│{e}  7. Kembali                    {w}│║{e}".center(b+8))
+                print(f"{w}║│{e}  4. Keranjang                  {w}│║{e}".center(b+8))
+                print(f"{w}║│{e}  5. Riwayat Transaksi          {w}│║{e}".center(b+8))
+                print(f"{w}║│{e}  6. Informasi Akun             {w}│║{e}".center(b+8))
+                print(f"{w}║│{e}  7. Help                       {w}│║{e}".center(b+8))
+                print(f"{w}║│{e}  8. Kembali                    {w}│║{e}".center(b+8))
                 print(f"{w}║├────────────────────────────────┤║{e}".center(b))
                 print(f"{w}║│{e}           Menu User            {w}│║{e}".center(b+8))
                 print(f"{w}║└────────────────────────────────┘║{e}".center(b))
@@ -1347,14 +1361,16 @@ def Menu(role,data_akun):
                     case "3":
                         Pengembalian(data_akun)
                     case "4":
-                        RiwayatTransaksi(role,data_akun)
+                        Keranjang(data_akun)
                     case "5":
-                        InformasiAkun(role,data_akun)
+                        RiwayatTransaksi(role,data_akun)
                     case "6":
-                        Help(data_akun)
+                        InformasiAkun(role,data_akun)
                     case "7":
-                        clear_terminal()
+                        Help(data_akun)
                         break
+                    case "8":
+                        clear_terminal()
                     case _:
                         clear_terminal()
                         print("Menu tidak sesuai")
