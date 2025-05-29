@@ -11,6 +11,10 @@ def clear_terminal():
         os.system('cls')
     else:
         os.system('clear')
+
+def format_rupiah(number):
+    return f"Rp {int(number):,}".replace(",", ".")
+
 def banner():
     b = 130
     blue = "\033[34m"
@@ -82,11 +86,14 @@ def register():
             break
     while True:
         domain_diizinkan = ["gmail.com","mail.unej.ac.id"]
+        email_sudah_ada = [user['email_address'] for user in data_customer]
         email = input("Masukkan alamat email : ")
         if email == "":
             print("Alamat email tidak boleh kosong")
         elif "@" not in email:
             print("Alamat email harus mengandung '@'.")
+        elif email in email_sudah_ada:
+            print("Alamat email sudah terdaftar. Silahkan gunakan alamat email lain.")
         else:
             domain = email.split('@')[1]
             if domain not in domain_diizinkan:
@@ -139,50 +146,48 @@ def login():
             continue
         else:
             break
-
-    password = input("Masukkan password : ")
-    if data_admin:
-        try:
-            query = "SELECT * FROM akun_admin WHERE username=%s AND password=%s"
-            syntax.execute(query, (username, password))
-            data = syntax.fetchone()
-            if data:
-                hiasan("Login Berhasil")
-                hiasan(f"Selamat datang Admin {data['nama']}")
-                input("Tekan enter untuk melanjutkan")
-                clear_terminal()
-                Menu('admin', data)
-            else:
-                print("Username atau password salah")
-        except Exception as e:
-            print("Login gagal")
-            print(e)
-        finally:
-            syntax.close()
-            koneksi.close()
-    elif data_customer:
-        try:
-            query = "SELECT * FROM customer WHERE username=%s AND password=%s"
-            syntax.execute(query, (username, password))
-            data = syntax.fetchone()
-            if data:
-                hiasan("Login Berhasil")
-                hiasan(f"Selamat datang {data['nama']}")
-                input("Tekan enter untuk melanjutkan")
-                clear_terminal()
-                Menu('customer', data)
-            else:
-                print("Username atau password salah")
-        except Exception as e:
-            print("Login gagal")
-            print(e)
-        finally:
-            syntax.close()
-            koneksi.close()
+    while True:
+        password = input("Masukkan password : ")
+        if data_admin:
+            try:
+                query = "SELECT * FROM akun_admin WHERE username=%s AND password=%s"
+                syntax.execute(query, (username, password))
+                data = syntax.fetchone()
+                if data:
+                    hiasan("Login Berhasil")
+                    hiasan(f"Selamat datang Admin {data['nama']}")
+                    input("Tekan enter untuk melanjutkan")
+                    clear_terminal()
+                    Menu('admin', data)
+                    break
+                else:
+                    print("Password salah")
+            except Exception as e:
+                print("Login gagal")
+                print(e)
+        elif data_customer:
+            try:
+                query = "SELECT * FROM customer WHERE username=%s AND password=%s"
+                syntax.execute(query, (username, password))
+                data = syntax.fetchone()
+                if data:
+                    hiasan("Login Berhasil")
+                    hiasan(f"Selamat datang {data['nama']}")
+                    input("Tekan enter untuk melanjutkan")
+                    clear_terminal()
+                    Menu('customer', data)
+                    break
+                else:
+                    print("Password salah")
+            except Exception as e:
+                print("Login gagal")
+                print(e)
+    syntax.close()
+    koneksi.close()
 
 def kuasaAdmin(pilihan):
     koneksi = connect()
-    syntax = koneksi.cursor()
+    syntax = koneksi.cursor(cursor_factory=RealDictCursor)
     if pilihan == '1':
         try:
             nama = input("Masukkan nama produk : ")
@@ -227,13 +232,20 @@ def kuasaAdmin(pilihan):
                 produk = input("Masukkan id/nama produk yang ingin diubah : ")
                 try:
                     int(produk)
-                    query = "SELECT * FROM produk WHERE id_produk = %s"
+                    query = """SELECT id_produk, nama AS "Nama", harga AS "Harga", stok AS "Stok", disewakan FROM produk WHERE id_produk = %s"""
                     syntax.execute(query, (produk,))
-                except ValueError:
-                    query = "SELECT * FROM produk WHERE nama ILIKE %s"
-                    syntax.execute(query, (f"%{produk}%"))
-                try:
                     data = syntax.fetchone()
+                    query_semua = "SELECT * FROM produk WHERE id_produk = %s"
+                    syntax.execute(query_semua, (produk,))
+                    data_semua = syntax.fetchone()
+                except ValueError:
+                    query = """SELECT id_produk, nama AS "Nama", harga AS "Harga", stok AS "Stok", disewakan FROM produk WHERE nama ILIKE %s"""
+                    syntax.execute(query, (f"%{produk}%",))
+                    data = syntax.fetchone()
+                    query_semua = "SELECT * FROM produk WHERE nama ILIKE %s"
+                    syntax.execute(query_semua, (f"%{produk}%",))
+                    data_semua = syntax.fetchone()
+                try:
                     if not data:
                         print("Produk tidak ditemukan")
                         print("Silahkan masukkan ulang")
@@ -260,7 +272,7 @@ def kuasaAdmin(pilihan):
                 if pilihan == '1':
                     nama = input("Masukkan nama produk baru : ")
                     print("\nPreview Perubahan")
-                    print(f"Nama Produk Lama : {data['nama']}")
+                    print(f"Nama Produk Lama : {data['Nama']}")
                     print(f"Nama Produk Baru : {nama}")
                     konfirmasi = input("\nSimpan Perubahan? (y/n) : ").lower()
                     if konfirmasi == 'y':
@@ -268,6 +280,7 @@ def kuasaAdmin(pilihan):
                             query = "UPDATE produk SET nama = %s WHERE id_produk = %s"
                             syntax.execute(query, (nama, data["id_produk"]))
                             koneksi.commit()
+                            data['Nama'] = nama
                             print("Data berhasil diubah")
                             input("Tekan enter untuk melanjutkan")
                             clear_terminal()
@@ -288,13 +301,14 @@ def kuasaAdmin(pilihan):
                             print("Harga harus berupa angka")
                     
                     print("\nPreview Perubahan")
-                    print(f"Harga Produk Lama : {data['harga']}")
+                    print(f"Harga Produk Lama : {data_semua['harga']}")
                     print(f"Harga Produk Baru : {harga}")
                     konfirmasi = input("\nSimpan Perubahan? (y/n) : ").lower()
                     if konfirmasi == 'y':
                         query = f"UPDATE produk SET harga={harga} WHERE id={produk} OR nama='{produk}'"
                         syntax.execute(query)
                         koneksi.commit()
+                        data['Harga'] = harga
                         print("Data berhasil diubah")
                         input("Tekan enter untuk melanjutkan")
                         clear_terminal()
@@ -310,14 +324,15 @@ def kuasaAdmin(pilihan):
                         except ValueError:
                             print("Stok harus berupa angka")
                     print("\nPreview Perubahan")
-                    print(f"Stok Produk Lama : {data['stok']}")
-                    print(f"Stok Produk Baru : {data['stok'] + stok}")
+                    print(f"Stok Produk Lama : {data_semua['stok']}")
+                    print(f"Stok Produk Baru : {data_semua['stok'] + stok}")
                     konfirmasi = input("\nSimpan Perubahan? (y/n) : ").lower()
                     if konfirmasi == 'y':   
                         try:
                             query = "UPDATE produk SET stok = %s WHERE id_produk = %s"
-                            syntax.execute(query, (data["stok"]+stok, data["id_produk"]))
-                            koneksi.commit()    
+                            syntax.execute(query, (data_semua["stok"]+stok, data_semua["id_produk"]))
+                            koneksi.commit()
+                            data['Stok'] = data_semua['stok'] + stok    
                             print("Stok berhasil ditambah")
                             input("Tekan enter untuk melanjutkan")
                             clear_terminal()
@@ -340,13 +355,14 @@ def kuasaAdmin(pilihan):
                     syntax.execute("SELECT id_kategori FROM kategori kategori = %s", (kategori,))
                     data_kategori = syntax.fetchone()
                     print("\nPreview Perubahan")
-                    print(f"Kategori Produk Lama : {data['kategori']}")
+                    print(f"Kategori Produk Lama : {data_semua['kategori']}")
                     print(f"Kategori Produk Baru : {kategori}")
                     konfirmasi = input("\nSimpan Perubahan? (y/n) : ").lower()
                     if konfirmasi == 'y':
                         query = "UPDATE produk SET kategori = %s WHERE id_produk = %s"
                         syntax.execute(query, (data_kategori["id_kategori"], data["id_produk"]))
                         koneksi.commit()
+                        data['Kategori'] = kategori
                         print("Kategori berhasil diubah")
                         input("Tekan enter untuk melanjutkan")
                         clear_terminal()
@@ -356,7 +372,7 @@ def kuasaAdmin(pilihan):
                         clear_terminal()
                 elif pilihan == '5':
                     clear_terminal()
-                    break
+                    return
                 else:
                     print("Hanya masukkan (1/2/3/4/5)")
                     input("Tekan enter untuk melanjutkan")
@@ -372,10 +388,10 @@ def kuasaAdmin(pilihan):
                 produk = input("Masukkan id/nama produk yang ingin dihapus : ")
                 try:
                     id_produk = int(produk) 
-                    query = "SELECT * FROM produk WHERE id_produk = %s"
+                    query = "SELECT nama AS \"Nama\", harga AS \"Harga\", stok AS \"Stok\", disewakan FROM produk WHERE id_produk = %s"
                     syntax.execute(query, (id_produk,))
                 except ValueError:
-                    query = "SELECT * FROM produk WHERE nama ILIKE %s"
+                    query = "SELECT nama AS \"Nama\", harga AS \"Harga\", stok AS \"Stok\", disewakan FROM produk WHERE nama ILIKE %s"
                     syntax.execute(query, (f"%{produk}%",))
                     
                 data = syntax.fetchone()
@@ -423,6 +439,52 @@ def kuasaAdmin(pilihan):
             syntax.close()
             koneksi.close()
 
+def ChatWa(data_akun,data_produk,jumlah,data_metode,id_metode_pembayaran,data_penyewaan,teks, mode='beli'):
+    metode_bayar = next((item for item in data_metode if item['id_metode_pembayaran'] == id_metode_pembayaran), None) 
+    if not metode_bayar:
+        metode_nama = "Tidak dikenali"
+    else:
+        metode_nama = metode_bayar['metode_pembayaran']
+    link = "https://wa.me/6287863306466?text="
+    if mode == 'beli':
+        total_harga = data_produk['harga'] * int(jumlah)
+        pesan = (
+            "Halo admin Cantiknya Mahar,\n"
+            f"Saya ingin melakukan konfirmasi pembelian:\n\n"
+            f"Nama Customer \t\t: {data_akun['nama']}\n"
+            f"Nama Produk \t\t: {data_produk['nama']}\n"
+            f"Jumlah Produk \t\t: {jumlah}\n"
+            f"Metode Pembayaran \t: {metode_nama}\n"
+            f"Total Harga \t\t: {format_rupiah(total_harga)}\n"
+            f"{teks}"
+        )
+    elif mode == 'sewa':
+        id_penyewaan = data_penyewaan.get('id_penyewaan', '-')
+        pembayaran_dp = data_penyewaan.get('pembayaran_dp', '-')
+        tanggal_sewa = data_penyewaan.get('tanggal_sewa', '-')
+        tanggal_kembali = data_penyewaan.get('tanggal_kembali', '-')
+
+        pesan = (
+            "Halo admin Cantiknya Mahar, saya ingin melakukan penyewaan produk berikut:\n"
+            f"Id Penyewaan \t: {id_penyewaan}\n"
+            f"Nama Customer \t : {data_akun['nama']}\n"
+            f"Nama Produk \t : {data_produk['nama']}\n"
+            f"Jumlah Produk \t : {jumlah}\n"
+            f"Jumlah dp \t : {pembayaran_dp}\n"
+            f"Tanggal Penyewaan \t : {tanggal_sewa}\n"
+            f"Tanggal Kembali \t : {tanggal_kembali}\n"
+            f"Metode Pembayaran \t : {metode_nama}\n"
+            f"{teks}\n"
+        )
+    else:
+        pesan = (
+            "Halo admin Cantiknya Mahar, saya ingin melakukan konfirmasi:\n"
+            f"Nama Customer \t: {data_akun['nama']}\n"
+            f"{teks}\n"
+        )
+    pesan = pesan.replace(" ", "%20").replace("\n", "%0A").replace("\t", "%09")
+    return link + pesan
+
 def Beli(data_produk,data_akun,jumlah):
     koneksi = connect()
     kursor = koneksi.cursor(cursor_factory=RealDictCursor)
@@ -433,6 +495,7 @@ def Beli(data_produk,data_akun,jumlah):
 
         total_harga = 0
         daftar_pembelian = []
+        tanya = ''
 
         if data_keranjang:
             print("Nampaknya anda memiliki barang dikeranjang, apakah anda ingin membelinya sekalian?", end=" ")
@@ -455,24 +518,19 @@ def Beli(data_produk,data_akun,jumlah):
                     print(f"{p['nama']} x {p['jumlah']} = Rp{p['harga'] * p['jumlah']}")
                 print(f"\nTotal harga \t: Rp{total_harga}")
 
-            else:
-                harga = data_produk['harga'] * int(jumlah)
-                daftar_pembelian.append({
-                    'id_produk': data_produk['id_produk'],
-                    'nama': data_produk['nama'],
-                    'harga': data_produk['harga'],
-                    'jumlah': jumlah
-                })
-                total_harga = harga
 
-        else:
-            harga = data_produk['harga'] * int(jumlah)
+        if not (data_keranjang and tanya.lower() == 'y'):
+            if not data_produk:
+                print("Data produk tidak ditemukan")
+                input("Tekan enter untuk melanjutkan...")
+                clear_terminal()
+                return
             daftar_pembelian.append({
                 'id_produk': data_produk['id_produk'],
                 'nama': data_produk['nama'],
                 'harga': data_produk['harga'],
                 'jumlah': jumlah})
-            total_harga = harga
+            total_harga = data_produk['harga'] * int(jumlah)
 
         print("Apakah Anda ingin melanjutkan ke pembayaran?", end=" ")
         konfirmasi = input("(Y/N) : ")
@@ -485,49 +543,73 @@ def Beli(data_produk,data_akun,jumlah):
         query = f"SELECT * FROM metode_pembayaran"
         kursor.execute(query)
         data_metode = kursor.fetchall()
-        if data_metode:
-            print("""
-                        ╔══════════════════════════════════╗
-                        ║      Pilih Metode Pembayaran     ║
-                        ║┌────────────────────────────────┐║
-                        ║│        1. Bank BRI             │║
-                        ║│        2. Bank BCA             │║
-                        ║│        3. Shopee Pay           │║
-                        ║│        4. Dana                 │║
-                        ║│        5. Cash                 │║
-                        ║│        6. Kembali              │║
-                        ║└────────────────────────────────┘║
-                        ╚══════════════════════════════════╝""")
+        id_metode_pembayaran = None
+        print("""
+                    ╔══════════════════════════════════╗
+                    ║      Pilih Metode Pembayaran     ║
+                    ║┌────────────────────────────────┐║
+                    ║│        1. Bank BRI             │║
+                    ║│        2. Bank BCA             │║
+                    ║│        3. Shopee Pay           │║
+                    ║│        4. Dana                 │║
+                    ║│        5. Cash                 │║
+                    ║│        6. Kembali              │║
+                    ║└────────────────────────────────┘║
+                    ╚══════════════════════════════════╝""")
+        while True:
             metode_pembayaran = input("Pilih metode pembayaran : ")
-            match metode_pembayaran:
-                case "1":
-                    metode_pembayaran = "Bank BRI"
-                case "2":
-                    metode_pembayaran = "Bank BCA"
-                case "3":
-                    metode_pembayaran = "Shopee Pay"
-                case "4":
-                    metode_pembayaran = "Dana"
-                case "5":
-                    metode_pembayaran = "Cash"
-                case "6":
-                    clear_terminal()
-                case _:
-                    print("Metode pembayaran tidak valid, silahkan coba lagi")
+            if metode_pembayaran in ["1", "2", "3", "4", "5"]:
+                id_metode_pembayaran = int(metode_pembayaran)
+                break
+            elif metode_pembayaran == "6":
+                print("Kembali ke menu utama")
+                input("Tekan enter untuk melanjutkan...")
+                clear_terminal()
+                return
+            else:
+                print("Metode pembayaran tidak valid, silahkan coba lagi")
+
         for item in daftar_pembelian:
-            query = "INSERT INTO transaksi (tanggal, nominal, id_produk, id_customer, id_metode_pembayaran, id_penyewaan) VALUES (%s, %s, %s, %s, %s))"
-            kursor.execute(query,(
-                tanggal,
-                item['harga'] * int(item['jumlah']),
-                item['id_produk'],
-                data_akun['id_customer'],
-                data_metode[0]['id_metode_pembayaran']
-            ))
-            koneksi.commit()
-            query = f"UPDATE produk SET stok=stok-{item['jumlah']} WHERE id_produk={item['id_produk']}"
-            kursor.execute(query)
-            koneksi.commit()
-        print("Pembelian berhasil")
+            try:
+                if 'id_transaksi' not in locals():
+                    query = "INSERT INTO transaksi (tanggal, nominal, id_customer, id_metode_pembayaran, id_penyewaan) VALUES (%s, %s, %s, %s, %s) RETURNING id_transaksi"
+                    kursor.execute(query,(
+                        tanggal,
+                        total_harga,
+                        data_akun['id_customer'],
+                        id_metode_pembayaran,
+                        None  
+                    ))
+                    id_transaksi = kursor.fetchone()['id_transaksi']
+                    koneksi.commit()
+                query = """
+                    INSERT INTO item_transaksi
+                    (id_produk, jumlah, id_transaksi)
+                    VALUES (%s, %s, %s)"""
+                nominal = item['harga'] * int(item['jumlah'])
+                kursor.execute(query, (item['id_produk'], item['jumlah'], id_transaksi))
+                print(f"Berikut detail pembelian {data_akun['nama']}:")
+                print(f"Nama Produk \t\t: {item['nama']}")
+                print(f"Jumlah Produk \t\t: {item['jumlah']}")
+                print(f"Total Harga \t\t: {format_rupiah(nominal)}")
+                print(f"Metode Pembayaran\t: {data_metode[id_metode_pembayaran-1]['metode_pembayaran']}")
+                print(f"Tanggal Pembelian\t: {tanggal.strftime('%Y-%m-%d %H:%M:%S')}")
+                print("Silahkan melakukan pembayaran ke nomo rekening berikut : ", data_metode[id_metode_pembayaran-1]['no_rekening'],"\n")
+                print("Setelah melakukan pembayaran, silahkan konfirmasi ke admin dengan klik link berikut:")
+                url = ChatWa(data_akun, item, item['jumlah'], data_metode,id_metode_pembayaran, {}, "Saya ingin melakukan konfirmasi pembayaran", mode='beli')
+                print(url)
+
+                query = f"UPDATE produk SET stok=stok-{item['jumlah']} WHERE id_produk={item['id_produk']}"
+                kursor.execute(query)
+                koneksi.commit()
+            except Exception as e:
+                print("Terjadi kesalahan saat menyimpan transaksi")
+                print(e)
+                input("Tekan enter untuk melanjutkan...")
+                return
+        input("Tekan enter untuk melanjutkan...")
+        clear_terminal()
+
         if data_keranjang and tanya.lower() == 'y':
             query = f"DELETE FROM keranjang WHERE id_customer={data_akun['id_customer']}"
             kursor.execute(query)
@@ -541,42 +623,100 @@ def Beli(data_produk,data_akun,jumlah):
     finally:
         kursor.close()
         koneksi.close()
-
-def ChatWa(data_akun,data_produk,jumlah,data_metode,data_penyewaan,teks):
-    link = "https://wa.me/6287863306466?text="
-    pesan = (
-        "Halo admin Cantiknya Mahar, saya ingin melakukan penyewaan produk berikut:\n"
-        f"Id Penyewaan \t: {data_penyewaan['id_penyewaan']}\n"
-        f"Nama Customer \t : {data_akun['nama']}\n"
-        f"Nama Produk \t : {data_produk['nama']}\n"
-        f"Jumlah Produk \t : {jumlah}\n"
-        f"Jumlah dp \t : {data_penyewaan['pembayaran_dp']}\n"
-        f"Tanggal Penyewaan \t : {data_penyewaan['tanggal_sewa']}\n"
-        f"Tanggal Kembali \t : {data_penyewaan['tanggal_kembali']}\n"
-        f"Metode Pembayaran \t : {data_metode[0]['metode_pembayaran']}\n"
-        f"{teks}\n"
-    )
-    pesan = pesan.replace(" ", "%20").replace("\n", "%0A").replace("\t", "%09")
-    return link + pesan
     
-def Sewa(data_akun,data_produk,jumlah):
+def Sewa(data_produk,data_akun, jumlah):
     koneksi = connect()
     kursor = koneksi.cursor(cursor_factory=RealDictCursor)
-    if data_akun['id_alamat'] == None:
-        print("Silahkan lengkapi data alamat anda terlebih dahulu")
-        return
-    while True:
-        if int(jumlah) > data_produk['stok']:
-            print("Jumlah produk yang ingin disewa melebihi stok yang tersedia")
-        elif int(jumlah) <= 0:
-            print("Jumlah produk yang ingin disewa tidak valid")
-        else:
-            break
+
     try:
-        tanggal = dt.datetime.now()
-        query = f"SELECT * FROM metode_pembayaran"
+        if data_akun['id_alamat'] is None:
+            hiasan("Mohon Maaf, anda belum bisa meminjam")
+            print("Silahkan lengkapi data alamat Anda terlebih dahulu")
+            input("Tekan enter untuk melanjutkan...")
+            clear_terminal()
+            return
+
+        query = f"SELECT * FROM keranjang WHERE id_customer={data_akun['id_customer']}"
+        kursor.execute(query)
+        data_keranjang = kursor.fetchall()
+
+        daftar_sewa = []
+        tanya = ''
+
+        if data_keranjang:
+            print("Nampaknya Anda memiliki barang di keranjang.")
+            tanya = input("Apakah Anda ingin menyewa barang dari keranjang? (Y/N): ").strip().lower()
+            if tanya == 'y':
+                for item in data_keranjang:
+                    query = f"SELECT * FROM produk WHERE id_produk = {item['id_produk']}"
+                    kursor.execute(query)
+                    produk = kursor.fetchone()
+                    if produk and produk['disewakan']:
+                        daftar_sewa.append({
+                            'id_produk': produk['id_produk'],
+                            'nama': produk['nama'],
+                            'harga_sewa': (produk['harga'] // 50),
+                            'jumlah': item['jumlah']
+                        })
+                if not daftar_sewa:
+                    print("Tidak ada produk yang tersedia untuk disewa di keranjang.")
+                    input("Tekan enter untuk melanjutkan...")
+                    return
+
+                print("\nBerikut adalah barang di keranjang:")
+                print(tabulate(daftar_sewa, headers="keys", tablefmt="fancy_grid"))
+                print("""
+Apakah Anda ingin:
+1. Menyewa semua produk?
+2. Menyewa hanya satu produk?
+""")
+                pilih = input("Pilih opsi (1/2): ").strip()
+                if pilih == "2":
+                    while True:
+                        id_pilih = int(input("Masukkan ID produk yang ingin disewa: "))
+                        ditemukan = False
+                        daftar_sewa_baru = []
+                        for item in daftar_sewa:
+                            if item['id_produk'] == id_pilih:
+                                daftar_sewa_baru.append(item)
+                                ditemukan = True
+                        if not ditemukan:
+                            print("ID produk tidak ditemukan di keranjang.")
+                            input("Enter untuk mencoba lagi...")
+                        else:
+                            daftar_sewa = daftar_sewa_baru
+                            break
+
+        if not (data_keranjang and tanya == 'y'):
+            if not data_produk['disewakan']:
+                print("Produk ini tidak tersedia untuk disewa.")
+                input("Tekan enter untuk melanjutkan...")
+                return
+            daftar_sewa.append({
+                'id_produk': data_produk['id_produk'],
+                'nama': data_produk['nama'],
+                'harga_sewa': (data_produk['harga'] // 50),
+                'jumlah': jumlah
+            })
+
+        for item in daftar_sewa:
+            if item['jumlah'] > data_produk['stok']:
+                print(f"Jumlah {item['nama']} melebihi stok yang tersedia.")
+                input("Tekan enter untuk melanjutkan...")
+                return
+
+        print("Apakah Anda ingin melanjutkan ke pembayaran DP?", end=" ")
+        konfirmasi = input("(Y/N): ").strip().lower()
+        if konfirmasi != 'y':
+            print("Penyewaan dibatalkan.")
+            input("Tekan enter untuk melanjutkan...")
+            return
+
+        query = "SELECT * FROM metode_pembayaran"
         kursor.execute(query)
         data_metode = kursor.fetchall()
+        id_metode_pembayaran = None
+
         if data_metode:
             print("""
                         ╔══════════════════════════════════╗
@@ -590,71 +730,85 @@ def Sewa(data_akun,data_produk,jumlah):
                         ║│        6. Kembali              │║
                         ║└────────────────────────────────┘║
                         ╚══════════════════════════════════╝""")
-            metode_pembayaran = input("Pilih metode pembayaran : ")
-            match metode_pembayaran:
-                case "1":
-                    metode_pembayaran = "Bank BRI"
-                case "2":
-                    metode_pembayaran = "Bank BCA"
-                case "3":
-                    metode_pembayaran = "Shopee Pay"
-                case "4":
-                    metode_pembayaran = "Dana"
-                case "5":
-                    metode_pembayaran = "Cash"
-                case "6":
+            while True:
+                metode_input = input("Pilih metode pembayaran : ")
+                if metode_input in ["1", "2", "3", "4", "5"]:
+                    id_metode_pembayaran = int(metode_input)
+                    break
+                elif metode_input == "6":
+                    print("Kembali ke menu utama")
                     clear_terminal()
-                case _:
+                    return
+                else:
                     print("Metode pembayaran tidak valid, silahkan coba lagi")
-        query = f"UPDATE produk SET stok=stok-{jumlah} WHERE id_produk ={data_produk['id_produk']}"
-        kursor.execute(query)
-        koneksi.commit()
+                    continue
+
+        if id_metode_pembayaran is None:
+            print("Harap pilih metode pembayaran")
+            return
+
         tanggal_penyewaan = input("Masukkan tanggal penyewaan (YYYY-MM-DD) : ")
         tanggal_kembali = input("Masukkan tanggal kembali (YYYY-MM-DD) : ")
-        biaya_sewa = (data_produk['harga']//50/100) * int(jumlah)
-        pembayaran_dp = input(f"Masukkan pembayaran dp jumlah dp sebesar {biaya_sewa} : ")
-        while True:
-            if int(pembayaran_dp) < biaya_sewa:
-                print(f"Jumlah dp kurang dari {biaya_sewa}")
-            elif int(pembayaran_dp) <= 0:
-                print("Jumlah dp tidak valid")
-            else:
-                break
-        query = f"INSERT INTO penyewaan (tanggal_sewa, tanggal_kembali, pembayaran_dp, status_dp, status_peminjaman, id_produk, id_customer, id_metode_pembayaran) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
-        kursor.execute(query,(
-            tanggal_penyewaan,
-            tanggal_kembali,
-            pembayaran_dp,
-            'belum dibayarkan',
-            'masih proses',
-            data_produk['id_produk'],
-            data_akun['id_customer'],
-            data_metode[0]['id_metode_pembayaran']
-        ))
-        koneksi.commit()
-        query = f"SELECT * FROM penyewaan"
-        kursor.execute(query)
-        data_penyewaan = kursor.fetchall()
-        query = f"INSERT INTO transaksi (tanggal, nominal, id_produk, id_customer, id_metode_pembayaran, id_penyewaan) VALUES (%s, %s, %s, %s, %s, %s))"
-        tanggal = dt.datetime.now()
-        kursor.execute(query,(
-                tanggal,
-                data_produk['harga'] * int(jumlah),
-                data_produk['id_produk'],
+
+        for item in daftar_sewa:
+            biaya_sewa = item['harga_sewa'] * int(item['jumlah'])
+            pembayaran_dp = input(f"Masukkan pembayaran DP (minimal {biaya_sewa // 2}): ")
+
+            query = """
+                INSERT INTO penyewaan 
+                (tanggal_sewa, tanggal_kembali, pembayaran_dp, status_dp, status_peminjaman, id_produk, id_customer, id_metode_pembayaran)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id_penyewaan
+            """
+            kursor.execute(query, (
+                tanggal_penyewaan,
+                tanggal_kembali,
+                pembayaran_dp,
+                'belum dibayarkan',
+                'masih proses',
+                item['id_produk'],
                 data_akun['id_customer'],
-                data_metode[0]['id_metode_pembayaran'],
-                data_penyewaan[0]['id_penyewaan']
-                ))
-        koneksi.commit()
-        input("Tekan enter untuk mengenerate link whatsapp")
-        url = ChatWa(data_akun,data_produk,jumlah,data_metode,data_penyewaan[0],"\nSaya ingin menghubungi admin untuk konfirmasi penyewaan, Mohon untuk diacc")
-        print(f"Silahkan klik link berikut untuk menghubungi admin : \n{url}")
-        input("Tekan enter untuk melanjutkan")
+                id_metode_pembayaran
+            ))
+            id_penyewaan = kursor.fetchone()['id_penyewaan']
+            koneksi.commit()
+
+            query = """
+                INSERT INTO transaksi 
+                (tanggal, nominal, id_produk, id_customer, id_metode_pembayaran, id_penyewaan)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            tanggal_transaksi = dt.datetime.now()
+            kursor.execute(query, (
+                tanggal_transaksi,
+                biaya_sewa,
+                item['id_produk'],
+                data_akun['id_customer'],
+                id_metode_pembayaran,
+                id_penyewaan
+            ))
+            koneksi.commit()
+
+            query = f"UPDATE produk SET stok = stok - {item['jumlah']} WHERE id_produk = {item['id_produk']}"
+            kursor.execute(query)
+            koneksi.commit()
+
+        if data_keranjang and tanya == 'y':
+            query = f"DELETE FROM keranjang WHERE id_customer={data_akun['id_customer']}"
+            kursor.execute(query)
+            koneksi.commit()
+
+        print("Penyewaan berhasil!")
+        input("Tekan enter untuk mengenerate link WhatsApp...")
+        url = ChatWa(data_akun, data_produk, jumlah, data_metode,id_metode_pembayaran, id_penyewaan, "\nSaya ingin menghubungi admin untuk konfirmasi penyewaan, Mohon untuk diacc", mode='sewa')
+        print(f"Silahkan klik link berikut untuk menghubungi admin:\n{url}")
+        input("Tekan enter untuk melanjutkan...")
         clear_terminal()
+
     except Exception as e:
-        print("Penyewaan gagal")
-        print(e)
-        print("Silahkan coba lagi")
+        print("Penyewaan gagal:", e)
+        input("Terjadi kesalahan saat melakukan penyewaan, silahkan coba lagi")
+        koneksi.rollback()
     finally:
         kursor.close()
         koneksi.close()
@@ -731,70 +885,110 @@ def InformasiAkun(role,data_akun):
 def Keranjang(data_akun):
     koneksi = connect()
     kursor = koneksi.cursor(cursor_factory=RealDictCursor)
-    query = f"SELECT * FROM keranjang WHERE id_customer={data_akun['id_customer']}"
-    kursor.execute(query)
-    data_keranjang = kursor.fetchall()
-    if data_keranjang:
+    try:
+        query = f"SELECT * FROM keranjang WHERE id_customer={data_akun['id_customer']}"
+        kursor.execute(query)
+        data_keranjang = kursor.fetchall()
+        if not data_keranjang:
+            print("Keranjang belanja anda kosong")
+            input("Tekan enter untuk kembali")
+            clear_terminal()
+            return
         print("Berikut adalah keranjang belanja anda:")
         print(tabulate(data_keranjang, headers="keys", tablefmt="fancy_grid"))
         tanya = input("Apakah anda ingin lanjut ke pembelian? (y/n) : ")
-        if tanya.lower() == 'y':
-            tanya = input("Anda inngin membeli salah satu produk atau semua produk? (s/a) : ")
-            if tanya.lower() == 's':
-                produk = input("Masukkan id/nama produk yang ingin dibeli : ")
+        if tanya != 'y':
+            clear_terminal()
+            return
+        pilihan = input("Anda ingin membeli salah satu produk atau semua produk? (s/a) : ").strip().lower()
+        daftar_pembelian = []
+        if pilihan == 's':
+            produk_input = input("Masukkan id/nama produk yang ingin dibeli : ")
+            try:
+                id_produk = int(produk_input)
+                query = """
+                    SELECT p.id_produk, p.nama, p.harga, k.jumlah
+                    FROM produk p
+                    JOIN keranjang k ON p.id_produk = k.id_produk
+                    WHERE k.id_produk = %s AND k.id_customer = %s"""
+                kursor.execute(query, (id_produk, data_akun['id_customer']))
+            except ValueError:
+                query = """
+                    SELECT p.id_produk, p.nama, p.harga, k.jumlah
+                    FROM produk p
+                    JOIN keranjang k ON p.id_produk = k.id_produk
+                    WHERE p.nama ILIKE %s AND k.id_customer = %s"""
+                kursor.execute(query, (f"%{produk_input}%", data_akun['id_customer']))
+            data_produk = kursor.fetchone()
+            if not data_produk:
+                print("Produk tidak ditemukan di keranjang")
+                input("Tekan enter untuk kembali")
+                clear_terminal()
+                return
+            print("Berikut adalah data produk yang ingin dibeli:")
+            print(tabulate([data_produk], headers="keys", tablefmt="fancy_grid"))
+            while True:
+                jumlah_input = input(f"Masukkan jumlah (tersedia : {data_produk['jumlah']}): ")
                 try:
-                    id_produk = int(produk) 
-                    query = "SELECT p.nama,p.harga,k.jumlah FROM produk p JOIN keranjang k WHERE id_produk = %s"
-                    kursor.execute(query, (id_produk,))
+                    jumlah = int(jumlah_input)
+                    if jumlah <= 0 or jumlah > data_produk['jumlah']:
+                        print("Jumlah tidak valid atau melebihi stok yang tersedia")
+                    else:
+                        break
                 except ValueError:
-                    query = "SELECT p.nama,p.harga,k.jumlah FROM produk p JOIN keranjang k WHERE nama ILIKE %s"
-                    kursor.execute(query, (f"%{produk}%",))
-                while True:
-                    try:
-                        data_produk = kursor.fetchone()
-                        if data_produk:
-                            print("Berikut adalah data produk yang ingin dibeli:")
-                            print(tabulate(data_produk, headers="keys", tablefmt="fancy_grid"))
-                            tanya = input("Beli semuanya atau beberapa (s/b) : ").lower()
-                            if tanya == 's':
-                                jumlah = data_keranjang['jumlah']
-                                Beli(data_produk,data_akun,jumlah)
-                            else:
-                                while True:
-                                    jumlah = int(input("Masukkan jumlah barang yang ingin anda beli : "))
-                                    if jumlah >= data_keranjang["jumlah"]:
-                                        print("Jumlahnya tidak sesui yang ada di keranjang anda")
-                                        print("Silahkan masukkan ulang")
-                                    else:
-                                        Beli(data_produk,data_akun,jumlah)
-                            clear_terminal()
-                            break
-                        else:
-                            print("Produk tidak ditemukan")
-                            break
-                    except Exception as e:
-                        print("Gagal menampilkan data produk")
-                        print(e)
-            elif tanya.lower() == 'a':
-                query = f"SELECT * FROM produk WHERE id IN (SELECT id_produk FROM keranjang WHERE id_customer={data_akun['id_customer']})"
-                kursor.execute(query)
-                data_produk = kursor.fetchall()
-                if data_produk:
-                    print("Berikut adalah data produk yang ingin dibeli:")
-                    print(tabulate(data_produk, headers="keys", tablefmt="fancy_grid"))
-                else:
-                    print("Tidak ada produk yang tersedia")
-        print("Silahkan pilih produk yang ingin dibeli")
-    else:
-        print("Anda tidak memiliki barang dikeranjang")
+                    print("Jumlah harus berupa angka")
+            Beli(data_produk, data_akun, jumlah)
+            sisa = data_produk['jumlah'] - jumlah
+            if sisa <= 0:
+                query = "DELETE FROM keranjang WHERE id_produk = %s AND id_customer = %s"
+                kursor.execute(query, (data_produk['id_produk'], data_akun['id_customer']))
+            else:
+                query = "UPDATE keranjang SET jumlah = %s WHERE id_produk = %s AND id_customer = %s"
+                kursor.execute(query, (sisa, data_produk['id_produk'], data_akun['id_customer']))
+            koneksi.commit()
+        elif pilihan == 'a':
+            query = """
+                SELECT p.id_produk, p.nama, p.harga, k.jumlah 
+                FROM produk p 
+                JOIN keranjang k ON p.id_produk = k.id_produk 
+                WHERE k.id_customer = %s
+            """
+            kursor.execute(query, (data_akun['id_customer'],))
+            semua_produk = kursor.fetchall()
+            if not semua_produk:
+                print("Tidak ada produk yang tersedia di keranjang")
+                input("Tekan enter untuk kembali")
+                clear_terminal()
+                return
+            print("Berikut adalah semua produk yang ingin dibeli:")
+            print(tabulate(semua_produk, headers="keys", tablefmt="fancy_grid"))
+            konfirmasi = input("Apakah Anda ingin membeli semua produk? (y/n) : ").strip().lower()
+            if konfirmasi != 'y':
+                print("Pembelian dibatalkan")
+                input("Tekan enter untuk kembali")
+                clear_terminal()
+                return
+            for item in semua_produk:
+                Beli(item, data_akun, item['jumlah'])
+            query = "DELETE FROM keranjang WHERE id_customer = %s"
+            kursor.execute(query, (data_akun['id_customer'],))
+            koneksi.commit()
+        else:
+            print("Pilihan tidak valid, silahkan coba lagi")
+            input("Tekan enter untuk kembali")
+            clear_terminal()
+    except Exception as e:
+        print("Terjadi kesalahan:", e)
         input("Tekan enter untuk kembali")
-        clear_terminal()
-
+        koneksi.rollback()
+    finally:
+        kursor.close()
+        koneksi.close()
 
 def JualSewa(data_akun):
     koneksi = connect()
     kursor = koneksi.cursor(cursor_factory=RealDictCursor)
-    query = "SELECT * FROM produk"
+    query = "SELECT id_produk,nama,harga,stok FROM produk order by id_produk"
     kursor.execute(query)
     data_produk = kursor.fetchall()
     print("Berikut adalah katalog produk:")
@@ -805,23 +999,29 @@ def JualSewa(data_akun):
             keyword = input("Masukkan id/nama produk : ")
             try:
                 id_produk = int(keyword) 
-                query = "SELECT * FROM produk WHERE id_produk = %s"
+                query = "SELECT id_produk,nama,harga,stok,disewakan FROM produk WHERE id_produk = %s"
                 kursor.execute(query, (id_produk,))
             except ValueError:
-                query = "SELECT * FROM produk WHERE nama ILIKE %s"
+                query = "SELECT id_produk,nama,harga,stok,disewakan FROM produk WHERE nama ILIKE %s"
                 kursor.execute(query, (f"%{keyword}%",))
             try:
                 data_produk = kursor.fetchall()
-                if data_produk:
-                    print("Berikut adalah data produk yang ingin dibeli/disewa:")
+                if not data_produk:
+                    print("Produk tidak ditemukan")
+                    continue
+                elif len(data_produk) > 1:
+                    print("Ditemukan beberapa produk dengan nama yang sama")
+                    print(tabulate(data_produk, headers="keys", tablefmt="fancy_grid"))
+                    print("\nHarap masukkan id/nama produk secara spesifik")
+                    continue
+                else:
+                    print("Berikut adalah data produk yang dipilih:")
                     print(tabulate(data_produk, headers="keys", tablefmt="fancy_grid"))
                     break
-                else:
-                    print("Produk tidak ditemukan")
-                    print("Silahkan coba lagi")
             except Exception as e:
                 print("Gagal menampilkan data produk")
                 print(e)
+        data_produk = data_produk[0]
         while True:
             print("""\n
                           ╔══════════════════════════════════╗
@@ -840,8 +1040,8 @@ def JualSewa(data_akun):
                     input("Tekan enter untuk melanjutkan")
                     clear_terminal()
                     break
-                jumlah = input("Masukkan jumlah produk yang ingin dibeli : ")
                 while True:
+                    jumlah = input("Masukkan jumlah produk yang ingin dibeli : ")
                     if int(jumlah) > data_produk['stok']:
                         print("Jumlah produk yang ingin dibeli melebihi stok yang tersedia")
                     elif int(jumlah) <= 0:
@@ -850,14 +1050,15 @@ def JualSewa(data_akun):
                         break
                 Beli(data_produk,data_akun,jumlah)
                 clear_terminal()
+                return
             elif pilihan == '2':
                 if data_produk['disewakan'] == False:
                     print("Produk tidak tersedia untuk disewa")
                     input("Tekan enter untuk melanjutkan")
                     clear_terminal()
                     break
-                jumlah = input("Masukkan jumlah produk yang ingin disewa : ")
                 while True:
+                    jumlah = input("Masukkan jumlah produk yang ingin disewa : ")
                     if int(jumlah) > data_produk['stok']:
                         print("Jumlah produk yang ingin disewa melebihi stok yang tersedia")
                     elif int(jumlah) <= 0:
@@ -866,6 +1067,7 @@ def JualSewa(data_akun):
                         break
                 Sewa(data_produk,data_akun,jumlah)
                 clear_terminal()
+                return
             elif pilihan == '3':
                 try:
                     while True:
@@ -899,61 +1101,94 @@ def JualSewa(data_akun):
         koneksi.close()
 
 def Pengembalian(data_akun):
-    koneksi = connect()
-    kursor = koneksi.cursor(cursor_factory=RealDictCursor)
-    query = f"SELECT * FROM penyewaan WHERE id_customer={data_akun['id_customer']}"
-    kursor.execute(query)
-    data_penyewaan = kursor.fetchall()
-    query = f"SELECT * FROM produk WHERE id_produk = {data_penyewaan[0]['id_produk']})"
-    kursor.execute(query)
-    data_produk = kursor.fetchall()
-    if data_penyewaan[0]['status_peminjaman'] == 'dipinjam':
-        print("Berikut adalah data barang yang anda sewa : ")
-        print(tabulate(data_penyewaan, headers="keys", tablefmt="fancy_grid"))
-        tanya = input("Apakah anda ingin mengembalikan barang? (y/n) : ")
-        if tanya.lower() == 'y':
+    koneksi = None
+    try:
+        koneksi = connect()
+        with koneksi.cursor(cursor_factory=RealDictCursor) as kursor:
+            kursor.execute("SELECT EXISTS (SELECT 1 FROM penyewaan LIMIT 1)")
+            tabel_kosong = not kursor.fetchone()['exists']
+            if tabel_kosong:
+                print("Tidak ada data penyewaan yang tersedia")
+                input("Tekan enter untuk kembali")
+                clear_terminal()
+                return
             try:
-                query = f"UPDATE penyewaan SET status_peminjaman = 'dikembalikan' WHERE id_customer={data_akun['id_customer']}"
-                kursor.execute(query)
-                koneksi.commit()
-                print(f"Barang {data_produk[0]['nama']} berhasil dikembalikan")
-                input("Tekan enter untuk melanjutkan")
-                # clear_terminal()
-            except Exception as e:
-                print("Barang gagal dikembalikan")
-                print(e)
-                print("Silahkan coba lagi")
-                input("Tekan enter untuk melanjutkan")
-                # clear_terminal()
-        masih_proses = input("Apakah anda ingin melihat barang yang masih dalam proses penyewaan? (y/n) : ")
-        if masih_proses.lower() == 'y':
-            query = f"SELECT * FROM penyewaan WHERE id_customer={data_akun['id_customer']} AND status_peminjaman='masih proses'"
-            kursor.execute(query)
-            data_penyewaan = kursor.fetchall()
-            query = f"SELECT * FROM produk WHERE id_produk = {data_penyewaan[0]['id_produk']})"
-            kursor.execute(query)
-            data_produk = kursor.fetchone()
-            query = f"SELECT * FROM metode_pembayaran WHERE id_metode_pembayaran = {data_penyewaan[0]['id_metode_pembayaran']}"
-            kursor.execute(query)
-            data_metode = kursor.fetchall()
-            if data_penyewaan:
-                print("Berikut adalah barang yang masih dalam proses penyewaan:")
+                query = """
+                    SELECT p.*, pr.nama as nama_produk
+                    FROM penyewaan p
+                    JOIN produk pr ON p.id_produk = pr.id_produk
+                    WHERE p.id_customer = %s AND p.status_peminjaman IN ('dipinjam','masih proses')"""
+                kursor.execute(query, (int(data_akun['id_customer']),))
+                data_penyewaan = kursor.fetchall()
+
+                if not data_penyewaan:
+                    print("Tidak ada barang yang sedang disewa")
+                    input("Tekan enter untuk kembali")
+                    clear_terminal()
+                    return
+                print("Berikut adalah data barang yang anda sewa")
                 print(tabulate(data_penyewaan, headers="keys", tablefmt="fancy_grid"))
-                chat = input("Apakah anda mau menghubungi admin untuk mempercepat proses penyewaan? (y/n) : ")
-                if chat.lower() == 'y':
-                    pesan = input("Masukkan pesan yang ingin disampaikan ke admin : ")
-                    url = ChatWa(data_akun,data_produk,data_penyewaan[0]['jumlah'],data_metode,data_penyewaan[0], pesan)
-                    print(f"Silahkan klik link berikut untuk menghubungi admin : \n{url}")
+            except Exception as e:
+                print("Gagal menampilkan data penyewaan")
+                print(e)
+                input("Tekan enter untuk melanjutkan")
+                clear_terminal()
+                return
+            tanya = input("Apakah anda ingin mengembalikan barang? (y/n) : ")
+            if tanya.lower() == 'y':
+                for sewa in data_penyewaan:
+                    if sewa['status_peminjaman'] == 'dipinjam':
+                        try:
+                            query = """UPDATE penyewaan 
+                            SET status_peminjaman = 'dikembalikan'
+                            WHERE id_penyewaan = %s"""
+                            kursor.execute(query, (sewa['id_penyewaan']))
+                            koneksi.commit()
+                            print(f"Barang {sewa['nama']} berhasil dikembalikan")
+                        except Exception as e:
+                            print(f"Gagal mengaembalikan {sewa['nama']}")
+                            print(f"Karene {e}") 
+                input("Tekan enter untuk melanjutkan")
+                clear_terminal()
+
+            masih_proses = input("Apakah anda ingin melihat barang yang masih dalam proses penyewaan? (y/n) : ")
+            if masih_proses.lower() == 'y':
+                query = """
+                    SELECT p.*, pr.nama AS nama_produk
+                    FROM penyewaan p
+                    JOIN produk pr ON p.id_produk = pr.id_produk
+                    WHERE p.id_customer = %s AND p.status_peminjaman = 'masih proses'
+                    """
+                kursor.execute(query, (data_akun['id_customer'],))
+                data_penyewaan_proses = kursor.fetchall()
+
+                if data_penyewaan_proses:
+                    print("Berikut adalah barang yang masih dalam proses penyewaan:")
+                    print(tabulate(data_penyewaan_proses, headers="keys", tablefmt="fancy_grid"))
+                    chat = input("Apakah anda mau menghubungi admin untuk mempercepat proses penyewaan? (y/n) : ")
+                    if chat.lower() == 'y':
+                        query = """
+                            SELECT * FROM metode_pembayaran
+                            WHERE id_metode_pembayaran = %s"""
+                        kursor.execute(query, (data_penyewaan_proses[0]['id_metode_pembayaran'],))
+                        data_metode = kursor.fetchone()
+                        pesan = input("Masukkan pesan yang ingin disampaikan ke admin : ")
+                        url = ChatWa(data_akun,data_penyewaan_proses[0],data_penyewaan_proses[0]['jumlah'],data_metode,data_penyewaan_proses[0], pesan)
+                        print(f"Silahkan klik link berikut untuk menghubungi admin : \n{url}")
+                        input("Tekan enter untuk melanjutkan")
+                        clear_terminal()
+                else:
+                    print("Tidak ada barang yang masih dalam proses penyewaan")
                     input("Tekan enter untuk melanjutkan")
                     clear_terminal()
-            else:
-                print("Tidak ada barang yang masih dalam proses penyewaan")
-    else:
-        print("Tidak ada barang yang disewa")
+    except Exception as e:
+        print("Terjadi kesalahan : ", e)
         input("Tekan enter untuk melanjutkan")
         clear_terminal()
+    finally:
+        if koneksi:
+            koneksi.close()
                 
-
 def kategori_produk():
     while True:
         print(
@@ -1033,42 +1268,56 @@ def kategori_produk():
 def RiwayatTransaksi(role,data_akun):
     koneksi = connect()
     kursor = koneksi.cursor(cursor_factory=RealDictCursor)
-    query = f"SELECT * FROM transaksi"
-    kursor.execute(query)
-    data_transaksi = kursor.fetchall()
-    query = f"SELECT * FROM penyewaan"
-    kursor.execute(query)
-    data_penyewaan = kursor.fetchall()
-    if role == 'admin':
-        if data_transaksi:
-            query = f"""SELECT t.tanggal AS 'Tanggal', 
-            t.Nominal AS 'Nominal', 
-            p.status_peminjaman AS 'Status Peminjaman' 
-            FROM transaksi t 
-            FULL JOIN penyewaan p ON t.{data_transaksi['id_penyewaan']} = p.{data_penyewaan['id_penyewaan']}"""
+    try:
+        if role == 'admin':
+            query = """
+                SELECT 
+                t.tanggal AS "Tanggal",
+                t.nominal AS "Nominal",
+                p.status_peminjaman AS "Status Peminjaman",
+                t.id_penyewaan AS "ID Penyewaan"
+                FROM transaksi t
+                LEFT JOIN penyewaan p ON t.id_penyewaan = p.id_penyewaan
+                ORDER BY t.tanggal DESC"""
             kursor.execute(query)
-            data_transaksi = kursor.fetchall()
-            print("Berikut adalah riwayat transaksi:")
-            print(tabulate(data_transaksi, headers="keys", tablefmt="fancy_grid"))
-            input("Tekan enter untuk kembali")
-            clear_terminal()
+            
+        elif role == 'customer':
+            query = query = """
+                SELECT 
+                t.tanggal AS "Tanggal",
+                t.nominal AS "Nominal",
+                p.status_peminjaman AS "Status Peminjaman",
+                t.id_penyewaan AS "ID Penyewaan"
+                FROM transaksi t
+                LEFT JOIN penyewaan p ON t.id_penyewaan = p.id_penyewaan
+                WHERE t.id_customer = %s
+                ORDER BY t.tanggal DESC"""
+            kursor.execute(query, (data_akun['id_customer'],))
+        data_riwayat = kursor.fetchall()
+        tampilkan_data = []
+        for baris in data_riwayat:
+            baris_baru = dict(baris)
+            baris_baru['ID Penyewaan'] = baris['ID Penyewaan'] if baris['ID Penyewaan'] is not None else '-'
+            baris_baru['Status Peminjaman'] = baris['Status Peminjaman'] if baris['Status Peminjaman'] is not None else '-'
+            if baris['ID Penyewaan'] is not None:
+                baris_baru['Tipe Trnasaksi'] = 'Sewa'
+            else:
+                baris_baru['Tipe Trnasaksi'] = 'Beli'
+            tampilkan_data.append(baris_baru)
+        if tampilkan_data:
+            print("Berikut adalah riwayat transaksi : ")
+            print(tabulate(tampilkan_data, headers="keys", tablefmt="fancy_grid"))
         else:
             print("Tidak ada riwayat transaksi yang tersedia")
-            input("Tekan enter untuk kembali ke menu")
-            clear_terminal()
-    elif role == 'customer':
-        query = f"SELECT t.tanggal AS 'Tanggal', t.Nominal AS 'Nominal', p.status_peminjaman AS 'Status Peminjaman' FROM transaksi t FULL JOIN penyewaan p ON t.{data_transaksi['id_penyewaan']} = p.{data_penyewaan['id_penyewaan']} WHERE t.id_customer = t.{data_akun['id_customer']}"
-        kursor.execute(query)
-        data_penyewaan = kursor.fetchall()
-        if data_penyewaan:
-            print("Berikut adalah riwayat transaksi:")
-            print(tabulate(data_penyewaan, headers="keys", tablefmt="fancy_grid"))
-            input("Tekan enter untuk kembali")
-            clear_terminal()
-        else:
-            print("Tidak ada riwayat transaksi yang tersedia")
-            input("Tekan enter untuk kembali ke menu")
-            clear_terminal()
+        input("Tekan enter untuk kembali")
+        clear_terminal()
+    except Exception as e:
+        print("Terjadi kesalahan saat menampilkan riwayat transaksi:", e)
+        input("Tekan enter untuk kembali")
+        clear_terminal()
+    finally:
+        kursor.close()
+        koneksi.close()
 
 def AccPenyewaan():
     koneksi = connect()
@@ -1253,7 +1502,7 @@ def Help(data_akun):
         query = "SELECT * FROM akun_admin WHERE id_admin = %s"
         kursor.execute(query, (int(pillih),))
         data_admin = kursor.fetchone()
-        url = f"https://api.whatsapp.com/send?phone= {data_admin['no_hp']}?text={pesan_siap}"
+        url = f"https://wa.me/+{data_admin['no_hp']}?text={pesan_siap}"
         print(f"Silahkan klik link berikut untuk menghubungi admin {data_admin['nama']} : \n{url}")
         input("Tekan enter untuk kembali ke menu utama")
         clear_terminal()
@@ -1269,52 +1518,105 @@ def TampilkanKatalog(role):
     koneksi = connect()
     syntax = koneksi.cursor(cursor_factory=RealDictCursor)
     try:
-        query = """SELECT nama as "Nama", harga as "Harga", stok as "Stok", disewakan FROM produk"""
-        syntax.execute(query)
-        data = syntax.fetchall()
-        if data:
-            print("Berikut adalah katalog semua produk:")
-            print(tabulate(data, headers="keys", tablefmt="fancy_grid"))
-            tanya = input("Apakah anda ingin melihat produk berdasarkan kategori? (y/n) : ")
-            if tanya.lower() == 'y':
-                kategori_produk()
+        while True:
+            clear_terminal()
+            query = """
+                        SELECT nama AS "Nama", harga AS "Harga", stok AS "Stok", disewakan 
+                        FROM produk 
+                        ORDER BY id_produk
+                    """
+            syntax.execute(query)
+            katalog_semua = syntax.fetchall()
+            print(tabulate(katalog_semua, headers="keys", tablefmt="fancy_grid"))
+            if role != 'admin':
+                while True:
+                    tanya = input("Apakah anda ingin melihat produk berdasarkan kategori? (y/n) : ")
+                    if tanya.lower() == 'y':
+                        kategori = input("Masukkan kategori (souvenir/dekorasi/mahar/teserahan): ").strip().lower()
+                        query = """
+                            SELECT nama AS "Nama", harga AS "Harga", stok AS "Stok", disewakan 
+                            FROM produk 
+                            WHERE id_kategori = (SELECT id_kategori FROM kategori WHERE kategori = %s)
+                            ORDER BY id_produk
+                        """
+                        syntax.execute(query, (kategori,))
+                        katalog_kategori = syntax.fetchall()
+                        print(tabulate(katalog_kategori, headers="keys", tablefmt="fancy_grid"))
+                    elif tanya.lower() == 'n':
+                        input("Tekan enter untuk kembali ke menu utama")
+                        clear_terminal()
+                        return
             else:
-                input("Tekan enter untuk kembali ke menu utama")
-                clear_terminal()
-                return
-        else:
-            print("Tidak ada produk yang tersedia")
+                while True:
+                    print(
+                """
+                ╔══════════════════════════════════╗
+                ║         Tampilkan Produk         ║
+                ║┌────────────────────────────────┐║
+                ║│    1. Semua Produk             │║
+                ║│    2. Berdasarkan Kategori     │║
+                ║└────────────────────────────────┘║
+                ╚══════════════════════════════════╝
+                """)
+                    pilihan_tampil = input("Pilih opsi (1/2): ")
+                    if pilihan_tampil == '2':
+                        kategori = input("Masukkan kategori (souvenir/dekorasi/mahar/seserahan): ").strip().lower()
+                        query = """
+                                SELECT nama AS "Nama", harga AS "Harga", stok AS "Stok", disewakan 
+                                FROM produk 
+                                WHERE id_kategori = (SELECT id_kategori FROM kategori WHERE kategori = %s)
+                                ORDER BY id_produk
+                            """
+                        syntax.execute(query, (kategori,))
+                    else:
+                        query = """
+                            SELECT nama AS "Nama", harga AS "Harga", stok AS "Stok", disewakan 
+                            FROM produk 
+                            ORDER BY id_produk
+                        """
+                        syntax.execute(query)
+                    data = syntax.fetchall()
+                    if data:
+                        print(f"Berikut adalah katalog produk:")
+                        print(tabulate(data, headers="keys", tablefmt="fancy_grid"))
+                    else:
+                        print(f"Tidak ada produk dengan kategori {kategori} yang tersedia")
+                    if role == 'admin':
+                        print(
+            """
+            ╔══════════════════════════════════╗
+            ║           Kelola Barang          ║
+            ║┌────────────────────────────────┐║
+            ║│                                │║
+            ║│  1. Tambah Barang              │║
+            ║│  2. Ubah Barang                │║
+            ║│  3. Hapus Barang               │║
+            ║│  4. Tampilkan Ulang            │║
+            ║│  5. Kembali                    │║
+            ║└────────────────────────────────┘║
+            ╚══════════════════════════════════╝""") 
+                        pilihan_admin = input("Pilih program (1/2/3/4/5): ").strip()
+                        if pilihan_admin == '5':
+                            clear_terminal()
+                            return
+                        elif pilihan_admin in ['1', '2', '3']:
+                            kuasaAdmin(pilihan_admin)
+                        elif pilihan_admin == '4':
+                            clear_terminal()
+                            continue
+                        else:
+                            print("Input tidak valid.")
+                            input("Tekan enter untuk coba lagi...")
+                    else:
+                        input("\nTekan enter untuk kembali ke menu utama...")
+                        clear_terminal()
+                        return
     except Exception as e:
         print("Gagal menampilkan katalog")
         print(e)
     finally:
         syntax.close()
         koneksi.close()
-    if role == 'admin':
-        while True:
-            print(
-"""
-╔══════════════════════════════════╗
-║           Kelola Barang          ║
-║┌────────────────────────────────┐║""")
-            print("║│                                │║")
-            print("║│  1. Tambah Barang              │║")
-            print("║│  2. Ubah Barang                │║")
-            print("║│  3. Hapus Barang               │║")
-            print("║│  4. Kembali                    │║")
-            print("║└────────────────────────────────┘║")
-            print("╚══════════════════════════════════╝") 
-            while True:   
-                pilihan = input("Pilih program : ")
-                if pilihan == "4":
-                    clear_terminal()
-                    break
-                elif pilihan == '1' or pilihan == "2" or pilihan == "3":
-                    kuasaAdmin(pilihan)
-                    break
-                else:
-                    print("Hanya masukkan (1/2/3/4)")
-            break
 
 def Menu(role,data_akun):
     w = "\033[96m"
@@ -1368,9 +1670,9 @@ def Menu(role,data_akun):
                         InformasiAkun(role,data_akun)
                     case "7":
                         Help(data_akun)
-                        break
                     case "8":
                         clear_terminal()
+                        break
                     case _:
                         clear_terminal()
                         print("Menu tidak sesuai")
