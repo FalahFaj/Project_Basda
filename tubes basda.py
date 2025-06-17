@@ -1137,7 +1137,20 @@ def JualSewa(data_akun):
                             print("Jumlah produk yang ingin dimasukkan ke keranjang melebihi stok yang tersedia")
                         else:
                             break
-                    query = f"INSERT INTO keranjang (id_produk, id_customer, jumlah) VALUES ({data_produk['id_produk']}, {data_akun ['id_customer']}, {jumlah})"
+                    query = f"INSERT INTO keranjang (id_customer) VALUES ({data_akun ['id_customer']})"
+                    kursor.execute(query)
+                    koneksi.commit()
+                    query = f"SELECT id_keranjang FROM keranjang WHERE id_customer = {data_akun['id_customer']}"
+                    kursor.execute(query)
+                    id_keranjang = kursor.fetchone()['id_keranjang']
+                    query = """
+                        INSERT INTO detail_keranjang (id_keranjang, id_produk, jumlah)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (id_detail_keranjang)
+                        DO UPDATE SET jumlah = detail_keranjang.jumlah + EXCLUDED.jumlah"""
+                    kursor.execute(query, (id_keranjang, data_produk['id_produk'], jumlah))
+                    koneksi.commit()
+                    query = f"UPDATE produk SET stok = stok - {jumlah} WHERE id_produk = {data_produk['id_produk']}"
                     kursor.execute(query)
                     koneksi.commit()
                     print("Data berhasil dimasukkan ke keranjang")
